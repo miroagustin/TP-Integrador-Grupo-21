@@ -1,103 +1,104 @@
 USE C2900G21;
 GO
 
--- Insertar datos de prueba en la tabla Admin.Usuario
-INSERT INTO Admin.Usuario (contraseña, fecha_creacion)
-VALUES 
-('password123', GETDATE()),
-('password456', GETDATE());
+-- Datos para Admin.Usuario
+DECLARE @fecha_creacion DATETIME = GETDATE();
 
--- Insertar datos de prueba en la tabla Clinica.Paciente
-INSERT INTO Clinica.Paciente (nombre, apellido, apellido_materno, fecha_nacimiento, tipo_documento, nro_documento, sexo_biologico, genero, nacionalidad, foto_perfil, mail, telefono, telefono_contacto_alternativo, telefono_laboral, fecha_registro, fecha_actualizacion, usuario_actualizacion)
-VALUES
-('Juan', 'Perez', 'Gomez', '1980-01-01', 'DNI', '12345678', 'Masculino', 'Masculino', 'Argentina', NULL, 'juan.perez@example.com', '123456789', '987654321', '1122334455', GETDATE(), NULL, 1),
-('Maria', 'Lopez', 'Fernandez', '1990-02-02', 'DNI', '87654321', 'Femenino', 'Femenino', 'Argentina', NULL, 'maria.lopez@example.com', '234567890', '876543210', '2233445566', GETDATE(), NULL, 2);
--- Insertar datos de prueba en la tabla Clinica.Especialidad
-INSERT INTO Clinica.Especialidad (nombre_especialidad)
-VALUES
-('Cardiología'),
-('Dermatología');
--- Insertar datos de prueba en la tabla Clinica.Medico
-INSERT INTO Clinica.Medico (nombre, apellido, nro_matricula, id_especialidad)
-VALUES
-('Carlos', 'Gonzalez', 'MAT1234', 1),
-('Ana', 'Martinez', 'MAT5678', 2);
+EXEC Admin.InsertarUsuario 'contraseña123', @fecha_creacion;
+EXEC Admin.InsertarUsuario 'contraseña456', @fecha_creacion;
+EXEC Admin.InsertarUsuario 'contraseña789', @fecha_creacion;
 
+-- Datos para Clinica.Paciente
+DECLARE @fecha_registro DATETIME = GETDATE();
+DECLARE @usuario_actualizacion INT = 1; -- Suponiendo que el id_usuario 1 existe
 
+EXEC Clinica.InsertarPaciente 'Juan', 'Pérez', 'González', '1980-05-15', 'DNI', '12345678', 'Masculino', 'Masculino', 'Argentina', 'foto1.jpg', 'juan.perez@example.com', '111-111-1111', '222-222-2222', '333-333-3333', @fecha_registro, NULL, @usuario_actualizacion;
+EXEC Clinica.InsertarPaciente 'Ana', 'Martínez', 'López', '1990-07-20', 'DNI', '87654321', 'Femenino', 'Femenino', 'Argentina', 'foto2.jpg', 'ana.martinez@example.com', '444-444-4444', '555-555-5555', '666-666-6666', @fecha_registro, NULL, @usuario_actualizacion;
+EXEC Clinica.InsertarPaciente 'Carlos', 'Gómez', NULL, '1985-10-30', 'DNI', '13579246', 'Masculino', 'Masculino', 'Argentina', 'foto3.jpg', 'carlos.gomez@example.com', '777-777-7777', '888-888-8888', '999-999-9999', @fecha_registro, NULL, @usuario_actualizacion;
 
--- Insertar datos de prueba en la tabla Clinica.Cobertura
-INSERT INTO Clinica.Cobertura (imagen_credencial, nro_socio, fecha_registro, id_historia_clinica)
-VALUES 
-(NULL, '1001', GETDATE(), 1),
-(NULL, '1002', GETDATE(), 2);
+-- Datos para Clinica.Area
+EXEC Clinica.InsertarArea 'Cardiología';
+EXEC Clinica.InsertarArea 'Dermatología';
+EXEC Clinica.InsertarArea 'Neurología';
 
--- Insertar datos de prueba en la tabla Clinica.Prestador
-INSERT INTO Clinica.Prestador (nombre_prestador, plan_prestador)
-VALUES
-('ObraSocial1', 'Plan1'),
-('ObraSocial2', 'Plan2');
+-- Datos para Clinica.Estudio
+DECLARE @fecha DATE = GETDATE();
+DECLARE @id_area INT = 1; -- Suponiendo que el id_area 1 existe
 
+EXEC Clinica.InsertarEstudio @fecha, 'Electrocardiograma', 1, 'documento1.pdf', 'imagen1.jpg', @id_area;
+EXEC Clinica.InsertarEstudio @fecha, 'Biopsia de piel', 1, 'documento2.pdf', 'imagen2.jpg', @id_area;
+EXEC Clinica.InsertarEstudio @fecha, 'Resonancia magnética', 1, 'documento3.pdf', 'imagen3.jpg', @id_area;
 
+-- Datos para Clinica.Prestador
+EXEC Clinica.InsertarPrestador 'Obra Social 1', 'Plan A';
+EXEC Clinica.InsertarPrestador 'Prepaga 2', 'Plan B';
+EXEC Clinica.InsertarPrestador 'Seguro 3', 'Plan C';
 
--- Insertar datos de prueba en la tabla Clinica.Area
-INSERT INTO Clinica.Area (descripcion)
-VALUES 
-('Radiología'),
-('Cardiología');
+-- Datos para Clinica.Cobertura
+DECLARE @id_historia_clinica INT = 1; -- Suponiendo que el id_historia_clinica 1 existe
+DECLARE @id_prestador INT = 1; -- Suponiendo que el id_prestador 1 existe
 
--- Insertar datos de prueba en la tabla Clinica.Estudio
-INSERT INTO Clinica.Estudio (fecha, nombre_estudio, autorizado, documento_resultado, imagen_resultado, id_area)
-VALUES 
-(GETDATE(), 'Radiografía de Tórax', 1, NULL, NULL, 1),
-(GETDATE(), 'Electrocardiograma', 1, NULL, NULL, 2);
+EXEC Clinica.InsertarCobertura 'credencial1.jpg', '12345', @fecha, @id_historia_clinica, @id_prestador;
+EXEC Clinica.InsertarCobertura 'credencial2.jpg', '67890', @fecha, @id_historia_clinica, @id_prestador;
+EXEC Clinica.InsertarCobertura 'credencial3.jpg', '54321', @fecha, @id_historia_clinica, @id_prestador;
 
--- Insertar datos de prueba en la tabla Clinica.Estado_Turno
-INSERT INTO Clinica.Estado_Turno (Nombre_estado)
-VALUES
-('Atendido'),
-('Pendiente');
+-- Datos para Clinica.Domicilio
+EXEC Clinica.InsertarDomicilio 'Calle Falsa', '123', '4', 'A', '1234', 'Buenos Aires', 'CABA', @id_historia_clinica;
+EXEC Clinica.InsertarDomicilio 'Calle Verdadera', '456', '7', 'B', '5678', 'Buenos Aires', 'CABA', @id_historia_clinica;
+EXEC Clinica.InsertarDomicilio 'Avenida Siempreviva', '789', '10', 'C', '9101', 'Buenos Aires', 'CABA', @id_historia_clinica;
 
--- Insertar datos de prueba en la tabla Clinica.Tipo_Turno
-INSERT INTO Clinica.Tipo_Turno (nombre_tipo_turno)
-VALUES
-('Consulta'),
-('Emergencia');
+-- Datos para Clinica.Tipo_Turno
+EXEC Clinica.InsertarTipoTurno 'Consulta General';
+EXEC Clinica.InsertarTipoTurno 'Control';
+EXEC Clinica.InsertarTipoTurno 'Urgencia';
 
--- Insertar datos de prueba en la tabla Clinica.Turno
-INSERT INTO Clinica.Turno (id_estado, nombre_estado)
-VALUES 
-(1, 'Atendido'),
-(2, 'Pendiente');
+-- Datos para Clinica.Especialidad
+EXEC Clinica.InsertarEspecialidad 'Cardiología';
+EXEC Clinica.InsertarEspecialidad 'Dermatología';
+EXEC Clinica.InsertarEspecialidad 'Neurología';
 
--- Insertar datos de prueba en la tabla Clinica.Relacion_Turno_Medico
-INSERT INTO Clinica.Relacion_Turno_Medico (fecha, id_medico, id_especialidad, direccion_atencion, id_estudio, id_tipo_turno, id_historia_clinica, id_estado)
-VALUES
-('2024-06-10 10:00:00', 1, 1, 'Av. Siempre Viva 123', 1, 1, 1, 1),
-('2024-06-11 11:00:00', 2, 2, 'Av. Siempre Viva 456', 2, 2, 2, 2);
+-- Datos para Clinica.Medico
+DECLARE @id_especialidad INT = 1; -- Suponiendo que el id_especialidad 1 existe
 
--- Insertar datos de prueba en la tabla Clinica.Sede
-INSERT INTO Clinica.Sede (nombre_sede, direccion_sede)
-VALUES
-('Sede Central', 'Av. Principal 123'),
-('Sede Norte', 'Calle Secundaria 456');
+EXEC Clinica.InsertarMedico 'José', 'Rodríguez', '12345', @id_especialidad;
+EXEC Clinica.InsertarMedico 'María', 'López', '67890', @id_especialidad;
+EXEC Clinica.InsertarMedico 'Pedro', 'García', '54321', @id_especialidad;
 
--- Insertar datos de prueba en la tabla Clinica.Lista_Sede
-INSERT INTO Clinica.Lista_Sede (id_sede, id_medico, hora_inicio)
-VALUES
-(1, 1, '08:00:00'),
-(2, 2, '09:00:00');
+-- Datos para Clinica.Sede
+EXEC Clinica.InsertarSede 'Sede Central', 'Av. Principal 123';
+EXEC Clinica.InsertarSede 'Sede Norte', 'Calle Norte 456';
+EXEC Clinica.InsertarSede 'Sede Sur', 'Calle Sur 789';
 
--- Insertar datos de prueba en la tabla Clinica.Domicilio
-INSERT INTO Clinica.Domicilio (calle, numero, piso, departamento, codigo_postal, provincia, localidad, id_historia_clinica)
-VALUES
-('Calle Falsa', '123', '1', 'A', '1000', 'Buenos Aires', 'CABA', 1),
-('Calle Verdadera', '456', '2', 'B', '2000', 'Buenos Aires', 'CABA', 2);
+-- Datos para Clinica.Estado_Turno
+EXEC Clinica.InsertarEstadoTurno 'Pendiente';
+EXEC Clinica.InsertarEstadoTurno 'Confirmado';
+EXEC Clinica.InsertarEstadoTurno 'Cancelado';
 
--- Insertar datos de prueba en la tabla Clinica.EstudioPrestador
-INSERT INTO Clinica.EstudioPrestador (id_estudio, id_prestador, porcentaje, costo)
-VALUES
-(1, 1, 50.0, 1500.0),
-(2, 2, 75.0, 2000.0);
+-- Datos para Clinica.Turno
+DECLARE @id_medico INT = 1; -- Suponiendo que el id_medico 1 existe
+DECLARE @direccion_atencion VARCHAR(255) = 'Av. Principal 123';
+DECLARE @id_tipo_turno INT = 1; -- Suponiendo que el id_tipo_turno 1 existe
+DECLARE @id_estado INT = 1; -- Suponiendo que el id_estado 1 existe
+
+EXEC Clinica.InsertarTurno '2024-06-10 10:00:00', @id_medico, @direccion_atencion, NULL, @id_tipo_turno, @id_historia_clinica, @id_estado;
+EXEC Clinica.InsertarTurno '2024-06-10 11:00:00', @id_medico, @direccion_atencion, NULL, @id_tipo_turno, @id_historia_clinica, @id_estado;
+EXEC Clinica.InsertarTurno '2024-06-10 12:00:00', @id_medico, @direccion_atencion, NULL, @id_tipo_turno, @id_historia_clinica, @id_estado;
+
+-- Datos para Clinica.DiasXSede
+DECLARE @hora_inicio TIME = '08:00:00';
+
+EXEC Clinica.InsertarDiasXSede 1, 1, @hora_inicio; -- Suponiendo que el id_sede 1 y el id_medico 1 existen
+EXEC Clinica.InsertarDiasXSede 2, 2, @hora_inicio; -- Suponiendo que el id_sede 2 y el id_medico 2 existen
+EXEC Clinica.InsertarDiasXSede 3, 3, @hora_inicio; -- Suponiendo que el id_sede 3 y el id_medico 3 existen
+
+-- Datos para Clinica.EstudioPrestador
+DECLARE @porcentaje FLOAT = 50.0;
+DECLARE @costo FLOAT = 100.0;
+
+EXEC Clinica.InsertarEstudioPrestador 1, 1, @porcentaje, @costo; -- Suponiendo que el id_estudio 1 y el id_prestador 1 existen
+EXEC Clinica.InsertarEstudioPrestador 2, 2, @porcentaje, @costo; -- Suponiendo que el id_estudio 2 y el id_prestador 2 existen
+EXEC Clinica.InsertarEstudioPrestador 3, 3, @porcentaje, @costo; -- Suponiendo que el id_estudio 3 y el id_prestador 3 existen
+
 
 -- Verificar los datos insertados
 SELECT * FROM Admin.Usuario;
@@ -111,8 +112,7 @@ SELECT * FROM Clinica.Estudio;
 SELECT * FROM Clinica.Estado_Turno;
 SELECT * FROM Clinica.Tipo_Turno;
 SELECT * FROM Clinica.Turno;
-SELECT * FROM Clinica.Relacion_Turno_Medico;
 SELECT * FROM Clinica.Sede;
-SELECT * FROM Clinica.Lista_Sede;
+SELECT * FROM Clinica.DiasXSede;
 SELECT * FROM Clinica.Domicilio;
 SELECT * FROM Clinica.EstudioPrestador;
