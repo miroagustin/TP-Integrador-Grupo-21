@@ -2,8 +2,8 @@
 -- FECHA: 2024-06-11
 -- GRUPO: 21
 -- INTEGRANTES: FRAGASSI DONATELLA, MIRO AGUSTIN, ROJAS RODRIGUEZ CHRISTIAN RODRIGO, GARIN MATIAS
-
-create database C2900G21
+use master
+create database C2900G21 collate SQL_Latin1_General_CP1_CI_AS
 go
 use C2900G21
 go
@@ -103,7 +103,9 @@ CREATE TABLE Clinica.Cobertura (
     id_cobertura INT IDENTITY(1,1) PRIMARY KEY,
     imagen_credencial VARCHAR(MAX),
     nro_socio VARCHAR(50),
-    fecha_registro DATE NOT NULL
+    fecha_registro DATE NOT NULL,
+	id_historia_clinica int,
+	FOREIGN KEY (id_historia_clinica) REFERENCES Clinica.Paciente(id_historia_clinica)
 );
 
 CREATE TABLE Clinica.Prestador (
@@ -151,13 +153,10 @@ CREATE TABLE Clinica.Sede (
     direccion_sede VARCHAR(255) NOT NULL
 );
 
-CREATE TABLE Clinica.Relacion_Paciente_Cobertura (
-    id_historia_clinica INT,
-    id_cobertura INT,
-    PRIMARY KEY (id_historia_clinica, id_cobertura),
-    FOREIGN KEY (id_historia_clinica) REFERENCES Clinica.Paciente(id_historia_clinica),
-    FOREIGN KEY (id_cobertura) REFERENCES Clinica.Cobertura(id_cobertura)
-);
+CREATE TABLE Clinica.Estado_Turno (
+	id_estado int IDENTITY(1,1) PRIMARY KEY,
+	Nombre_estado varchar(50)
+)
 
 CREATE TABLE Clinica.Relacion_Turno_Medico (
     id_turno INT IDENTITY(1,1) PRIMARY KEY,
@@ -168,10 +167,12 @@ CREATE TABLE Clinica.Relacion_Turno_Medico (
     id_estudio INT,
     id_tipo_turno INT,
 	id_historia_clinica INT,
+	id_estado int,
     FOREIGN KEY (id_medico) REFERENCES Clinica.Medico(id_medico),
     FOREIGN KEY (id_especialidad) REFERENCES Clinica.Especialidad(id_especialidad),
     FOREIGN KEY (id_estudio) REFERENCES Clinica.Estudio(id_estudio),
     FOREIGN KEY (id_tipo_turno) REFERENCES Clinica.Tipo_Turno(id_tipo_turno),
+    FOREIGN KEY (id_estado) REFERENCES Clinica.Estado_Turno(id_estado),
 	FOREIGN KEY (id_historia_clinica) REFERENCES Clinica.Paciente(id_historia_clinica)
 );
 
@@ -908,7 +909,7 @@ BEGIN
     DROP TABLE #temp_sedes;
 END;
 GO
-CREATE PROCEDURE GenerarXMLTurnosAtendidos
+create PROCEDURE GenerarXMLTurnosAtendidos
     @nombreObraSocial VARCHAR(255),
     @fechaInicio DATETIME,
     @fechaFin DATETIME
@@ -932,12 +933,12 @@ BEGIN
             INNER JOIN Clinica.Paciente P ON RTM.id_historia_clinica = P.id_historia_clinica
             INNER JOIN Clinica.Medico M ON RTM.id_medico = M.id_medico
             INNER JOIN Clinica.Especialidad E ON RTM.id_especialidad = E.id_especialidad
-            INNER JOIN Clinica.Relacion_Paciente_Cobertura RPC ON P.id_historia_clinica = RPC.id_historia_clinica
-            INNER JOIN Clinica.Cobertura C ON RPC.id_cobertura = C.id_cobertura
+            INNER JOIN Clinica.Cobertura C ON P.id_historia_clinica = C.id_historia_clinica
             INNER JOIN Clinica.Prestador PR ON C.id_cobertura = PR.id_prestador
+			inner join clinica.Estado_Turno ET on ET.id_estado = RTM.id_estado
         WHERE
             PR.nombre_prestador = @nombreObraSocial AND
-            RTM.fecha BETWEEN @fechaInicio AND @fechaFin
+            RTM.fecha BETWEEN @fechaInicio AND @fechaFin and ET.Nombre_estado = 'Atendido'
         FOR XML PATH('Turno'), ROOT('Turnos')
     );
 
