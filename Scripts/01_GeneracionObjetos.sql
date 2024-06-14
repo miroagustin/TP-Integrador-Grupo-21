@@ -118,7 +118,7 @@ CREATE TABLE Clinica.Domicilio (
     numero VARCHAR(50) NOT NULL,
     piso VARCHAR(50),
     departamento VARCHAR(50),
-    codigo_postal VARCHAR(20) NOT NULL,
+    codigo_postal VARCHAR(20) NULL,
     provincia VARCHAR(255) NOT NULL,
     localidad VARCHAR(255) NOT NULL,
 	id_historia_clinica INT NOT NULL,
@@ -156,31 +156,33 @@ CREATE TABLE Clinica.Estado_Turno (
 	Nombre_estado varchar(50)
 )
 
+CREATE TABLE Clinica.DiasXSede (
+    id_sede INT,
+    id_medico INT,
+    hora_inicio TIME NOT NULL,
+	dia_semana int,
+    PRIMARY KEY (id_sede, id_medico),
+    FOREIGN KEY (id_sede) REFERENCES Clinica.Sede(id_sede),
+    FOREIGN KEY (id_medico) REFERENCES Clinica.Medico(id_medico)
+);
+
 CREATE TABLE Clinica.Turno (
     id_turno INT IDENTITY(1,1) PRIMARY KEY,
     fecha DATETIME NOT NULL,
     id_medico INT NOT NULL,
-
-    direccion_atencion VARCHAR(255) NOT NULL,
+    id_sede int NOT NULL,
+	id_historia_clinica INT NOT NULL,
+	id_tipo_turno INT NOT NULL,
+	id_estado int NOT NULL,
     id_estudio INT,
-    id_tipo_turno INT,
-	id_historia_clinica INT,
-	id_estado int,
-    FOREIGN KEY (id_medico) REFERENCES Clinica.Medico(id_medico),
+    FOREIGN KEY (id_sede,id_medico) REFERENCES Clinica.DiasXSede(id_sede,id_medico),
     FOREIGN KEY (id_estudio) REFERENCES Clinica.Estudio(id_estudio),
     FOREIGN KEY (id_tipo_turno) REFERENCES Clinica.Tipo_Turno(id_tipo_turno),
     FOREIGN KEY (id_estado) REFERENCES Clinica.Estado_Turno(id_estado),
 	FOREIGN KEY (id_historia_clinica) REFERENCES Clinica.Paciente(id_historia_clinica)
 );
 
-CREATE TABLE Clinica.DiasXSede (
-    id_sede INT,
-    id_medico INT,
-    hora_inicio TIME NOT NULL,
-    PRIMARY KEY (id_sede, id_medico),
-    FOREIGN KEY (id_sede) REFERENCES Clinica.Sede(id_sede),
-    FOREIGN KEY (id_medico) REFERENCES Clinica.Medico(id_medico)
-);
+
 
 
 CREATE TABLE Clinica.EstudioPrestador (
@@ -736,20 +738,41 @@ GO
 CREATE PROCEDURE Clinica.InsertarTurno
     @fecha DATETIME,
     @id_medico INT,
-    @direccion_atencion VARCHAR(255),
+    @id_sede INT,
     @id_estudio INT,
     @id_tipo_turno INT,
     @id_historia_clinica INT,
     @id_estado INT
 AS
 BEGIN
+	--Validar minutos en intervalos de 15
+	 IF DATEPART(MINUTE, @fecha) % 15 != 0
+		BEGIN
+			RAISERROR('La hora del turno debe ser en intervalos de 15 minutos: 00, 15, 30, 45.', 16, 1);
+			RETURN;
+		END
+	DECLARE @dia_semana int;
+	SET @dia_semana = DATEPART(WEEKDAY, @fecha);  -- Obtener el día de la semana de la fecha
+	IF NOT EXISTS (
+        SELECT 1
+        FROM Clinica.DiasXSede
+        WHERE id_medico = @id_medico
+          AND id_sede = @id_sede
+          AND dia_semana = @dia_semana
+    )
+    BEGIN
+        -- Si no es válido, arrojar un error y retornar
+        RAISERROR('El día de la semana para la fecha proporcionada no es válido para el médico y la sede especificados.', 16, 1);
+        RETURN;
+    END
+	-- Insertar el turno
     INSERT INTO Clinica.Turno (
-        fecha, id_medico, direccion_atencion,
+        fecha, id_medico,
         id_estudio, id_tipo_turno,
         id_historia_clinica, id_estado
     )
     VALUES (
-        @fecha, @id_medico, @direccion_atencion,
+        @fecha, @id_medico,
         @id_estudio, @id_tipo_turno,
         @id_historia_clinica, @id_estado
     );
@@ -770,18 +793,41 @@ CREATE PROCEDURE Clinica.ActualizarTurno
     @id_turno INT,
     @fecha DATETIME,
     @id_medico INT,
-    @direccion_atencion VARCHAR(255),
+    @id_sede INT,
     @id_estudio INT,
     @id_tipo_turno INT,
     @id_historia_clinica INT,
     @id_estado INT
 AS
 BEGIN
+	--Validar minutos en intervalos de 15
+	 IF DATEPART(MINUTE, @fecha) % 15 != 0
+		BEGIN
+			-- If not, raise an error and return
+			RAISERROR('La hora del turno debe ser en intervalos de 15 minutos: 00, 15, 30, 45.', 16, 1);
+			RETURN;
+		END
+		    DECLARE @dia_semana INT;
+    SET @dia_semana = DATEPART(WEEKDAY, @fecha);  -- Obtener el día de la semana de la fecha
+
+    -- Verificar si el día es válido para el médico y la sede
+    IF NOT EXISTS (
+        SELECT 1
+        FROM Clinica.DiasXSede
+        WHERE id_medico = @id_medico
+          AND id_sede = @id_sede
+          AND dia_semana = @dia_semana
+    )
+    BEGIN
+        -- Si no es válido, arrojar un error y retornar
+        RAISERROR('El día de la semana para la fecha proporcionada no es válido para el médico y la sede especificados.', 16, 1);
+        RETURN;
+    END
+	--Actualizar turno
     UPDATE Clinica.Turno
     SET
         fecha = @fecha,
         id_medico = @id_medico,
-        direccion_atencion = @direccion_atencion,
         id_estudio = @id_estudio,
         id_tipo_turno = @id_tipo_turno,
         id_historia_clinica = @id_historia_clinica,
@@ -876,6 +922,7 @@ GO
 
 -- SP medicos.csv
 CREATE PROCEDURE [Clinica].[ImportarMedicosDesdeCSV]
+@ruta varchar(200)
 AS
 BEGIN
     CREATE TABLE #temp_medicos (
@@ -886,15 +933,19 @@ BEGIN
     );
 
     -- Importar datos CSV a la tabla temporal
-    BULK INSERT #temp_medicos
-    FROM 'C:\Ruta\medicos.csv' -- Ruta del archivo hardcodeada
+	DECLARE @bulksql NVARCHAR(1000);
+	SET @bulksql = N'
+	BULK INSERT #temp_medicos
+    FROM '''+@ruta+'''
     WITH (
-        FIELDTERMINATOR = ';',  
-        ROWTERMINATOR = '\n',  
-		DATAFILETYPE = 'char',
-		CODEPAGE = '65001',
+        FIELDTERMINATOR = '';'',  
+        ROWTERMINATOR = ''\n'',  
+		DATAFILETYPE = ''char'',
+		CODEPAGE = ''65001'',
         FIRSTROW = 2           
     );
+	'
+	EXEC sp_executesql @bulksql;
 	insert into Clinica.Especialidad (nombre_especialidad) 
 	select tm.nombre_especialidad
 	FROM #temp_medicos tm
@@ -913,9 +964,9 @@ BEGIN
     DROP TABLE #temp_medicos;
 END;
 GO
-
 -- SP pacientes.csv
 CREATE PROCEDURE [Clinica].[ImportarPacientesDesdeCSV]
+@ruta varchar(200)
 AS
 BEGIN
     CREATE TABLE #temp_pacientes (
@@ -935,15 +986,20 @@ BEGIN
     );
 
     -- Importar datos CSV a la tabla temporal
-    BULK INSERT #temp_pacientes
-    FROM 'C:\Ruta\Pacientes.csv' -- Ruta del archivo hardcodeada
-    WITH (
-        FIELDTERMINATOR = ';',  
-        ROWTERMINATOR = '\n',  
-		DATAFILETYPE = 'char',
-		CODEPAGE = '65001',
-        FIRSTROW = 2            
-    );
+		DECLARE @bulksql NVARCHAR(1000);
+		SET @bulksql = N'
+		BULK INSERT #temp_pacientes
+		FROM '''+@ruta+''' -- Ruta del archivo hardcodeada
+		WITH (
+			FIELDTERMINATOR = '';'',  
+			ROWTERMINATOR = ''\n'',  
+			DATAFILETYPE = ''char'',
+			CODEPAGE = ''65001'',
+			FIRSTROW = 2            
+		);
+		'
+		EXEC sp_executesql @bulksql;
+    
 
     -- Insertar datos de la tabla temporal en la tabla permanente pacientes
     INSERT INTO Clinica.paciente (
@@ -978,9 +1034,9 @@ BEGIN
     DROP TABLE #temp_pacientes;
 END;
 GO
-
 -- SP prestadores.csv
 CREATE PROCEDURE [Clinica].[ImportarPrestadoresDesdeCSV]
+@ruta varchar(200)
 AS
 BEGIN
     CREATE TABLE #temp_prestadores (
@@ -989,15 +1045,20 @@ BEGIN
     );
 
     -- Importar datos CSV a la tabla temporal
-    BULK INSERT #temp_prestadores
-    FROM 'C:\Ruta\prestador.csv' -- Ruta del archivo hardcodeada
+	DECLARE @bulksql NVARCHAR(1000);
+	SET @bulksql = N'
+	BULK INSERT #temp_prestadores
+    FROM '''+@ruta+''' -- Ruta del archivo hardcodeada
     WITH (
-        FIELDTERMINATOR = ';',  
-        ROWTERMINATOR = '\n',  
-		DATAFILETYPE = 'char',
-		CODEPAGE = '65001',
+        FIELDTERMINATOR = '';'',  
+        ROWTERMINATOR = ''\n'',  
+		DATAFILETYPE = ''char'',
+		CODEPAGE = ''65001'',
         FIRSTROW = 2             
     );
+	'
+	EXEC sp_executesql @bulksql;
+    
 
     -- Insertar datos de la tabla temporal en la tabla permanente prestadores
     INSERT INTO Clinica.prestador (nombre_prestador, plan_prestador)
@@ -1011,9 +1072,9 @@ BEGIN
     DROP TABLE #temp_prestadores;
 END;
 GO
-
 -- SP sedes.csv
 CREATE PROCEDURE [Clinica].[ImportarSedesDesdeCSV]
+@ruta varchar(200)
 AS
 BEGIN
     CREATE TABLE #temp_sedes (
@@ -1022,17 +1083,19 @@ BEGIN
 		localidad_sede VARCHAR(255),
         provincia_sede VARCHAR(255),
     );
-
-    -- Importar datos CSV a la tabla temporal
-    BULK INSERT #temp_sedes
-    FROM 'C:\Ruta\sedes.csv' -- Ruta del archivo hardcodeada
+	-- Importar datos CSV a la tabla temporal
+	DECLARE @bulksql NVARCHAR(1000);
+	SET @bulksql = N'BULK INSERT #temp_sedes
+    FROM '''+@ruta+'''
     WITH (
-        FIELDTERMINATOR = ';',  
-        ROWTERMINATOR = '\n',  
-		DATAFILETYPE = 'char',
-		CODEPAGE = '65001',
+        FIELDTERMINATOR = '';'',  
+        ROWTERMINATOR = ''\n'',  
+		DATAFILETYPE = ''char'',
+		CODEPAGE = ''65001'',
         FIRSTROW = 2              
-    );
+    );'
+	EXEC sp_executesql @bulksql;
+
 
     -- Insertar datos de la tabla temporal en la tabla permanente sedes
     INSERT INTO Clinica.sede (nombre_sede, direccion_sede)
@@ -1045,44 +1108,9 @@ BEGIN
     DROP TABLE #temp_sedes;
 END;
 GO
-create PROCEDURE GenerarXMLTurnosAtendidos
-    @nombreObraSocial VARCHAR(255),
-    @fechaInicio DATETIME,
-    @fechaFin DATETIME
-AS
-BEGIN
-    DECLARE @xmlResult XML;
-
-    SET @xmlResult = (
-        SELECT
-            P.apellido AS 'Paciente/Apellido',
-            P.nombre AS 'Paciente/Nombre',
-            P.nro_documento AS 'Paciente/DNI',
-            M.nombre AS 'Medico/Nombre',
-            M.apellido AS 'Medico/Apellido',
-            M.nro_matricula AS 'Medico/Matricula',
-            RTM.fecha AS 'Turno/Fecha',
-            CONVERT(TIME, RTM.fecha) AS 'Turno/Hora',
-            E.nombre_especialidad AS 'Turno/Especialidad'
-        FROM
-            Clinica.Turno RTM
-            INNER JOIN Clinica.Paciente P ON RTM.id_historia_clinica = P.id_historia_clinica
-            INNER JOIN Clinica.Medico M ON RTM.id_medico = M.id_medico
-            INNER JOIN Clinica.Especialidad E ON M.id_especialidad = E.id_especialidad
-            INNER JOIN Clinica.Cobertura C ON P.id_historia_clinica = C.id_historia_clinica
-            INNER JOIN Clinica.Prestador PR ON C.id_cobertura = PR.id_prestador
-			inner join clinica.Estado_Turno ET on ET.id_estado = RTM.id_estado
-        WHERE
-            PR.nombre_prestador = @nombreObraSocial AND
-            RTM.fecha BETWEEN @fechaInicio AND @fechaFin and ET.Nombre_estado = 'Atendido'
-        FOR XML PATH('Turno'), ROOT('Turnos')
-    );
-
-    -- Retornar el XML resultante
-    SELECT @xmlResult AS ResultadoXML;
-END;
-go
+-- SP Centro_Autorizaciones.Estudios clinicos.json
 CREATE PROCEDURE [Clinica].[ImportarAutorizacionesDesdeJSON]
+@ruta varchar(200)
 AS
 BEGIN
     -- Crear la tabla temporal
@@ -1099,10 +1127,39 @@ BEGIN
 
 	-- Declarar la variable @json y cargar el contenido del archivo JSON
 	DECLARE @json VARCHAR(MAX);
+	DECLARE @bulksql NVARCHAR(1000);
+	SET @bulksql = N'
+			DECLARE @json VARCHAR(MAX);
+			SELECT @json = convert(varchar(max), coalesce(BulkColumn,'''' collate Latin1_General_100_CI_AS_SC_UTF8 )) collate SQL_Latin1_General_CP1_CI_AS
+			FROM OPENROWSET (BULK '''+@ruta+''', SINGLE_BLOB) AS j;
+				
+			INSERT INTO #TempData (_id, Area, Estudio, Prestador, PlanPrestador, PorcentajeCobertura, Costo, RequiereAutorizacion)
+			SELECT
+				_id,
+				main.Area,
+				main.Estudio,
+				main.Prestador,
+				main.[Plan] AS PlanPrestador,
+				main.[Porcentaje Cobertura] AS PorcentajeCobertura,    
+				main.Costo,
+				main.[Requiere autorizacion] AS RequiereAutorizacion
+			FROM OPENJSON(@json) 
+			WITH (
+				_id VARCHAR(MAX) ''$._id."$oid"'',
+				Area VARCHAR(50),
+				Estudio VARCHAR(50),
+				Prestador VARCHAR(50),
+				[Plan] VARCHAR(50),
+				[Porcentaje Cobertura] INT,
+				Costo DECIMAL(10,2),
+				[Requiere autorizacion] BIT
+			) main
+            ';
+
+	EXEC sp_executesql @bulksql;
 
 	-- Cargar el contenido del archivo JSON en la variable @json
-	SELECT @json = convert(varchar(max), coalesce(BulkColumn,'' collate Latin1_General_100_CI_AS_SC_UTF8 )) collate SQL_Latin1_General_CP1_CI_AS
-	FROM OPENROWSET (BULK 'C:\Ruta\Centro_Autorizaciones.Estudios Clinicos.json', SINGLE_BLOB) AS j;
+
 
 	--Print (@json)
 
@@ -1167,6 +1224,44 @@ BEGIN
 
     -- Eliminar la tabla temporal
     DROP TABLE #TempData;
+END;
+GO
+-- SP Genera turnos atendidos en formato XML
+CREATE PROCEDURE GenerarXMLTurnosAtendidos
+    @nombreObraSocial VARCHAR(255),
+    @fechaInicio DATETIME,
+    @fechaFin DATETIME
+AS
+BEGIN
+    DECLARE @xmlResult XML;
+
+    SET @xmlResult = (
+        SELECT
+            P.apellido AS 'Paciente/Apellido',
+            P.nombre AS 'Paciente/Nombre',
+            P.nro_documento AS 'Paciente/DNI',
+            M.nombre AS 'Medico/Nombre',
+            M.apellido AS 'Medico/Apellido',
+            M.nro_matricula AS 'Medico/Matricula',
+            RTM.fecha AS 'Turno/Fecha',
+            CONVERT(TIME, RTM.fecha) AS 'Turno/Hora',
+            E.nombre_especialidad AS 'Turno/Especialidad'
+        FROM
+            Clinica.Turno RTM
+            INNER JOIN Clinica.Paciente P ON RTM.id_historia_clinica = P.id_historia_clinica
+            INNER JOIN Clinica.Medico M ON RTM.id_medico = M.id_medico
+            INNER JOIN Clinica.Especialidad E ON M.id_especialidad = E.id_especialidad
+            INNER JOIN Clinica.Cobertura C ON P.id_historia_clinica = C.id_historia_clinica
+            INNER JOIN Clinica.Prestador PR ON C.id_cobertura = PR.id_prestador
+			inner join clinica.Estado_Turno ET on ET.id_estado = RTM.id_estado
+        WHERE
+            PR.nombre_prestador = @nombreObraSocial AND
+            RTM.fecha BETWEEN @fechaInicio AND @fechaFin and ET.Nombre_estado = 'Atendido'
+        FOR XML PATH('Turno'), ROOT('Turnos')
+    );
+
+    -- Retornar el XML resultante
+    SELECT @xmlResult AS ResultadoXML;
 END;
 GO
 -- FIN

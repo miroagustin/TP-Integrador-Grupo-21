@@ -3,11 +3,19 @@ GO
 
 -- Datos para Admin.Usuario
 DECLARE @fecha_creacion DATETIME = GETDATE();
+DECLARE @rutabase varchar(50) = 'C:/Ruta/';
+
+DECLARE @rutasedes varchar(50) = @rutabase+'Sedes.csv';
+DECLARE @rutapacientes varchar(50) = @rutabase+'Pacientes.csv';
+DECLARE @rutamedicos varchar(50) = @rutabase+'medicos.csv';
 
 EXEC Admin.InsertarUsuario 'contraseña123', @fecha_creacion;
 EXEC Admin.InsertarUsuario 'contraseña456', @fecha_creacion;
 EXEC Admin.InsertarUsuario 'contraseña789', @fecha_creacion;
-
+--Importacion desde archivos
+exec [Clinica].[ImportarSedesDesdeCSV] @rutasedes;
+exec [Clinica].[ImportarPacientesDesdeCSV] @rutapacientes;
+exec [Clinica].[ImportarMedicosDesdeCSV] @rutamedicos;
 -- Datos para Clinica.Paciente
 DECLARE @fecha_registro DATETIME = GETDATE();
 DECLARE @usuario_actualizacion INT = 1; -- Suponiendo que el id_usuario 1 existe
@@ -48,9 +56,8 @@ EXEC Clinica.InsertarDomicilio 'Calle Verdadera', '456', '7', 'B', '5678', 'Buen
 EXEC Clinica.InsertarDomicilio 'Avenida Siempreviva', '789', '10', 'C', '9101', 'Buenos Aires', 'CABA', @id_historia_clinica;
 
 -- Datos para Clinica.Tipo_Turno
-EXEC Clinica.InsertarTipoTurno 'Consulta General';
-EXEC Clinica.InsertarTipoTurno 'Control';
-EXEC Clinica.InsertarTipoTurno 'Urgencia';
+EXEC Clinica.InsertarTipoTurno 'Presencial';
+EXEC Clinica.InsertarTipoTurno 'Virtual';
 
 -- Datos para Clinica.Especialidad
 EXEC Clinica.InsertarEspecialidad 'Cardiología';
@@ -84,13 +91,6 @@ EXEC Clinica.InsertarTurno '2024-06-10 10:00:00', @id_medico, @direccion_atencio
 EXEC Clinica.InsertarTurno '2024-06-10 11:00:00', @id_medico, @direccion_atencion, NULL, @id_tipo_turno, @id_historia_clinica, @id_estado;
 EXEC Clinica.InsertarTurno '2024-06-10 12:00:00', @id_medico, @direccion_atencion, NULL, @id_tipo_turno, @id_historia_clinica, @id_estado;
 
--- Datos para Clinica.DiasXSede
-DECLARE @hora_inicio TIME = '08:00:00';
-
-EXEC Clinica.InsertarDiasXSede 1, 1, @hora_inicio; -- Suponiendo que el id_sede 1 y el id_medico 1 existen
-EXEC Clinica.InsertarDiasXSede 2, 2, @hora_inicio; -- Suponiendo que el id_sede 2 y el id_medico 2 existen
-EXEC Clinica.InsertarDiasXSede 3, 3, @hora_inicio; -- Suponiendo que el id_sede 3 y el id_medico 3 existen
-
 -- Datos para Clinica.EstudioPrestador
 DECLARE @porcentaje FLOAT = 50.0;
 DECLARE @costo FLOAT = 100.0;
@@ -99,7 +99,42 @@ EXEC Clinica.InsertarEstudioPrestador 1, 1, @porcentaje, @costo; -- Suponiendo q
 EXEC Clinica.InsertarEstudioPrestador 2, 2, @porcentaje, @costo; -- Suponiendo que el id_estudio 2 y el id_prestador 2 existen
 EXEC Clinica.InsertarEstudioPrestador 3, 3, @porcentaje, @costo; -- Suponiendo que el id_estudio 3 y el id_prestador 3 existen
 
+-- Assuming there are already 63 doctors and 15 sedes in the database
+-- Insert test data into Clinica.DiasXSede
 
+-- Check the number of records in Medico and Sede tables
+SELECT COUNT(*) AS MedicoCount FROM Clinica.Medico;
+SELECT COUNT(*) AS SedeCount FROM Clinica.Sede;
+
+-- Generating 50 test records
+DECLARE @MedicoCount INT = 63;
+DECLARE @SedeCount INT = 15;
+DECLARE @Counter INT = 1;
+
+WHILE @Counter <= 50
+BEGIN
+    DECLARE @id_sede_gen INT;
+    DECLARE @id_medico_gen INT;
+    DECLARE @hora_inicio_gen TIME;
+    DECLARE @dia_semana INT;
+    
+    -- Randomly select an id_sede and id_medico
+    SET @id_sede_gen = FLOOR(RAND() * @SedeCount) + 1;
+    SET @id_medico_gen = FLOOR(RAND() * @MedicoCount) + 1;
+
+    -- Randomly select a start time between 08:00 and 18:00 (8 AM to 6 PM)
+     SET @hora_inicio_gen = CAST(CAST(FLOOR(RAND() * (18 - 8) + 8) AS VARCHAR) + ':'
+                    + RIGHT('00' + CAST(FLOOR(RAND() * 4) * 15 AS VARCHAR), 2) + ':00' AS TIME);
+    
+    -- Randomly select a day of the week (1 = Sunday, 2 = Monday, ..., 7 = Saturday)
+    SET @dia_semana = FLOOR(RAND() * 7) + 1;
+    
+    -- Insert the generated record
+    INSERT INTO Clinica.DiasXSede (id_sede, id_medico, hora_inicio, dia_semana)
+    VALUES (@id_sede_gen, @id_medico_gen, @hora_inicio_gen, @dia_semana);
+    
+    SET @Counter = @Counter + 1;
+END;
 -- Verificar los datos insertados
 SELECT * FROM Admin.Usuario;
 SELECT * FROM Clinica.Paciente;
